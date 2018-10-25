@@ -840,7 +840,7 @@ mac_ts$pathloss <- NULL
 nodes_names_list <- unique(NodeData$node_name) #list unique nodes
 #node_s_1029N01 <- NodeData[NodeData$node_name == nodes_names_list[1], ]
 #node_s_1029N01 <- node_s_1029N01[order(node_s_1029N01$hour_stamp),]
-temp_nodes <- c("1071N04", "1225N18")
+temp_nodes <- c("1029N01","1071N04", "8037N04", "3661N06", "94000N03")
 
 mylist <- list() #Reference list that will hold node + list mac add DF
 for( i in temp_nodes){ #change to nodes_name_list
@@ -849,17 +849,23 @@ for( i in temp_nodes){ #change to nodes_name_list
 }
 
 #Create dummy list to hold aggregated mac addresses features for individual node
-node_1071N04_mac_add <- data.frame(src_node_id=rep(NA, N), NA_Percentage=rep("", N), sd_snr_up=rep("", N), sd_tx_pwr_up=rep("", N),
-                            sd_pathloss=rep("", N),sd_rx_pwr_up=rep("", N),sd_snr_up_median=rep("", N),mean_snr_up=rep("", N),        
-                            mean_tx_pwr_up=rep("", N),mean_pathloss=rep("", N),mean_rx_pwr_up=rep("", N),mean_rx_pwr_dn=rep("", N),
+node_x_mac_add <- data.frame(src_node_id=rep(NA, N), NA_Percentage=rep("", N), sd_snr_dn=rep("", N), sd_tx_pwr_up=rep("", N),
+                            mean_pathloss=rep("", N),sd_rx_pwr_up=rep("", N),sd_snr_up_median=rep("", N),mean_snr_dn=rep("", N),        
+                            mean_tx_pwr_up=rep("", N),sd_pathloss=rep("", N),mean_rx_pwr_up=rep("", N),mean_rx_pwr_dn=rep("", N),
                             mean_snr_up_median=rep("", N),sub_snr_up_tx_up=rep("", N),sub_snr_up_rx_up=rep("", N),sub_snr_dn_rx_dn=rep("", N),
                             div_snr_up_tx_up=rep("", N),div_snr_up_rx_up=rep("", N),div_snr_dn_rx_dn=rep("", N),div_rx_pwr_up_snr_dn=rep("", N),
                             # as many cols as you need
                             stringsAsFactors=FALSE)
 
+#node_x_mac_add <- data.frame(src_node_id=rep("", N), NA_Percentage=rep("", N), sd_snr_dn=rep("", N),sd_pathloss=rep("", N),mean_snr_dn=rep("", N),        
+#                                   mean_pathloss=rep("", N),mean_rx_pwr_dn=rep("", N),sub_snr_dn_rx_dn=rep("", N),
+#                                   div_snr_dn_rx_dn=rep("", N),
+                                   # as many cols as you need
+#                                   stringsAsFactors=FALSE)
+
 z = 1
-for (z in 1: length(mylist[['1071N04']])){ #z in number of mac address in node
-  dfx <- mylist[['1071N04']][[z]] #'1071N04' node of z mac add DF in list
+for (z in 1: length(mylist[['8037N04']])){ #z in number of mac address in node
+  dfx <- mylist[['8037N04']][[z]] #'1071N04' node of z mac add DF in list
   hold_values <- list() #create an empty list to hold values
   i=1
   while (i < 20) {  #Loops through 20 times to create features by aggregating DF
@@ -869,7 +875,7 @@ for (z in 1: length(mylist[['1071N04']])){ #z in number of mac address in node
     i=i+1
     hold_values[i] <- sum(is.na(dfx))/(count(dfx) * 7)  #NA percentage
     i=i+1
-    hold_values[i] <- sd(dfx$snr_up, na.rm = TRUE)
+    hold_values[i] <- sd(dfx$snr_dn, na.rm = TRUE)
     i=i+1
     hold_values[i] <- sd(dfx$tx_pwr_up, na.rm = TRUE)
     i=i+1
@@ -879,7 +885,7 @@ for (z in 1: length(mylist[['1071N04']])){ #z in number of mac address in node
     i=i+1
     hold_values[i] <- sd(dfx$snr_up_median, na.rm = TRUE)
     i-i+1
-    hold_values[i] <- mean(dfx$snr_up, na.rm = TRUE) #Mean of snr_up
+    hold_values[i] <- mean(dfx$snr_dn, na.rm = TRUE) #Mean of snr_dn
     i=i+1
     hold_values[i] <- mean(dfx$tx_pwr_up, na.rm = TRUE) #Mean of tx_pwr_up 
     i=i+1
@@ -901,22 +907,22 @@ for (z in 1: length(mylist[['1071N04']])){ #z in number of mac address in node
     i=i+1
     hold_values[i] <- mean(dfx$snr_up / dfx$rx_pwr_up, na.rm = TRUE) 
     i=i+1
-    hold_values[i] <- mean(dfx$snr_dn / dfx$rx_pwr_dn, na.rm = TRUE)
+    hold_values[i] <- as.numeric(mean(dfx$snr_dn / dfx$rx_pwr_dn, na.rm = TRUE))
     i=i+1
     hold_values[i] <- mean(dfx$tx_pwr_up / dfx$rx_pwr_up, na.rm = TRUE)
     i=i+1
     hold_values[i] <- mean(dfx$rx_pwr_up / dfx$snr_dn, na.rm = TRUE)
   }
-  node_1071N04_mac_add[z, ] <- hold_values #Add values as row
+  node_x_mac_add[z, ] <- hold_values #Add values as row
 }
-node_1071N04_mac_add <- na.omit(node_1071N04_mac_add) #Remove NA rows
-node_1071N04_mac_add[, -1] <- sapply(node_1071N04_mac_add[, -1], as.numeric) #Convert col types to num
-node_1071N04_mac_add[sapply(node_1071N04_mac_add, simplify = 'matrix', is.infinite)] <- NA #Replace inf with NA
+node_x_mac_add <- na.omit(node_x_mac_add) #Remove NA rows
+node_x_mac_add[, -1] <- sapply(node_x_mac_add[, -1], as.numeric) #Convert col types to num
+node_x_mac_add[sapply(node_x_mac_add, simplify = 'matrix', is.infinite)] <- NA #Replace inf with NA
 NA2mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
-node_1071N04_mac_add <- replace(node_1071N04_mac_add, TRUE, lapply(node_1071N04_mac_add, NA2mean)) #Replace NA with col mean
+node_x_mac_add <- replace(node_x_mac_add, TRUE, lapply(node_x_mac_add, NA2mean)) #Replace NA with col mean
 
 # B. Applying PCA
-prin_comp <- prcomp(node_1071N04_mac_add[,-1], scale. = T, center = T )
+prin_comp <- prcomp(node_x_mac_add[,-1], scale. = T, center = T )
 std_dev <- prin_comp$sdev
 pr_var <- std_dev^2
 prop_varex <- pr_var/sum(pr_var)
@@ -940,20 +946,20 @@ pca_x <- as.data.frame(prin_comp$x)
 library(cluster) # Needed for silhouette function
 
 # Setup for k-means loop 
-kmeansDat <- node_1071N04_mac_add[,-1]
+kmeansDat <- node_x_mac_add[,-1]
 km.out <- list()
 sil.out <- list()
 x <- vector()
 y <- vector()
 minClust <- 2      # Hypothesized minimum number of segments
-maxClust <- 8     # Hypothesized maximum number of segments
+maxClust <- 6     # Hypothesized maximum number of segments
 
 # Compute k-means clustering over various clusters, k, from minClust to maxClust
 for (centr in minClust:maxClust) {
   i <- centr-(minClust-1) # relevels start as 1, and increases with centr
   set.seed(11) # For reproducibility
   km.out[i] <- list(kmeans(kmeansDat, centers = centr, nstart = 25, iter.max=1000))
-  sil.out[i] <- list(silhouette(km.out[[i]][[1]], dist(kmeansDat))) # Running the k-means to find optimum cluster size
+  sil.out[i] <- list(silhouette(km.out[[i]][[1]], dist(kmeansDat))) # Running the k-means to find optinum cluster size
   # Used for plotting silhouette average widths
   x[i] = centr  # value of k
   y[i] = summary(sil.out[[i]])[[4]]  # Silhouette average width
@@ -976,13 +982,13 @@ set.seed(12)
 k2 <- kmeans(pca_x, 2, nstart=25, iter.max=1000)
 
 library(RColorBrewer)
-palette(alpha(brewer.pal(9,'Set1'), 0.5))
-plot(pca_x[,1:4], col=k2$clust, pch=16)
+palette(alpha(brewer.pal(9,'Set1'), 0.8))
+plot(pca_x[,1:5], col=k2$clust, pch=16)
 
 # Interactive 2D plot
-k2_pca_df <- cbind(pca_x, group=k2$clust)
+k2_pca_df <- cbind(pca_x, group=k2$clust, mac=node_x_mac_add$src_node_id)
 gg2 <- ggplot(k2_pca_df) +
-  geom_point(aes(x=PC1, y=PC2, col=factor(group), text=rownames(k2_pca_df)), size=2) +
+  geom_point(aes(x=PC1, y=PC3, col=factor(group), text=mac), size=2) +
   labs(title = "Visualizing K-Means Clusters Against First Two Principal Components") +
   scale_color_brewer(name="", palette = "Set1")
 # plotly for inteactivity
@@ -990,10 +996,16 @@ plotly1 <- ggplotly(gg2, tooltip = c("text", "x", "y")) %>%
   layout(legend = list(x=.9, y=.99))
 
 # Boxplot
-boxplot(node_1071N04_mac_add$NA_Percentage ~ k2$cluster,
-        xlab='Cluster', ylab='NA % per Mac Add',
-        main='Na % by Cluster')
+boxplot(node_x_mac_add$NA_Percentage ~ k2$cluster,
+        xlab='Cluster', ylab='NA %',
+        main='NA % by cluster')
 
-boxplot(node_1071N04_mac_add$mean_snr_up ~ k2$cluster,
-        xlab='Cluster', ylab='Mean snr_up per Mac Add',
-        main='Mean snr_up by Cluster')
+boxplot(node_x_mac_add$mean_snr_dn ~ k2$cluster,
+        xlab='Cluster', ylab='Mean snr_dn value',
+        main='Mean snr_dn by Cluster')
+
+boxplot(node_x_mac_add$mean_pathloss ~ k2$cluster,
+        xlab='Cluster', ylab='Mean pathloss',
+        main='Mean pathloss by Cluster')
+
+
