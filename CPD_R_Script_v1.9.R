@@ -24,6 +24,7 @@
 # Log 7; 22/10/2018: Added Time-series plotting code from Hassan.
 # Log 8; 22/10/2018: BNs can be produced as a result of Module 4 and printed on a pdf file.
 # Log 9; 24/10/2018: Updated time series functions and added the code to evaluate NA imputation methods.
+# Log 10; 25/10/2018: Updated time series NA imputation code. Updated pollingTest_CPE database query.
 
 # To-do List;
 # Next tasks in line:
@@ -94,7 +95,8 @@ node_data <- DBI::dbGetQuery(con,"SELECT ref.node_name, hour_stamp, AVG(snr_up)
                              GROUP BY ref.node_name, hour_stamp;")
 
 # Create dataframe containig all CPE information.
-pollingTest_CPE <- DBI::dbGetQuery(con,"SELECT * FROM TEST_CASES.test_cases_polling_data WHERE topo_node_type='CPE';")
+pollingTest_CPE <- DBI::dbGetQuery(con,"SELECT DISTINCT poll.* FROM TEST_CASES.test_cases_polling_data poll, TEST_CASES.TEST_CASES_REFERENCE_DATA ref
+                                   WHERE poll.topo_node_type='CPE' and poll.node_name=ref.node_name;")
 
 # Create a dataframe containing all mac addresses time series information.
 mac_data <- pollingTest_CPE[,c("node_name", "mac_address","hour_stamp", "snr_dn", "pathloss")]
@@ -593,7 +595,6 @@ dev.off()
 ######################################################################################################
 ##### --- Module 5. Evaluation of NA imputation methods --- ##########################################
 ######################################################################################################
-
 library(zoo)
 library(imputeTS)
 
@@ -618,60 +619,14 @@ mape <- function(actual, predicted){
   return (mean(abs((actual - predicted)/actual))*100)
 }
 
-# C. Function that creates missing data in time series
-# @param data - univariate time series
-# @param rate - lambda value for exponential distribution
-# @param seed - random seed used for the function
-# @return list containig the data with NA and the indexes where NA were added
-create_missing <- function(data, rate, seed=NULL) {
-  ## Only for time series
-  if (class(data) != "ts") {
-    stop("Provided data is not a time series.")
-  }
-  ## No missing data (pass-through)
-  if (rate == 0) {
-    return(data)
-  }
-  ## Save original parameters
-  t <- time(data)
-  f <- frequency(data)
-  ##Setting of random seed
-  if (!is.null(seed))
-    set.seed(seed)
-  ## Initialize index
-  a <- 0
-  ## Indices of removed entries
-  tempDelete <- numeric(0)
-  while (a < length(data)) {
-    ## 'ceiling' is to avoid possible zeros
-    a <- ceiling(a + rexp(1, rate))
-    if ( a <= length(data) ) {
-      data[a] <- NA
-      tempDelete <- c(tempDelete, a)
-    }
-  }
-  return(list(data=data, na.ind=tempDelete))
-} 
-
-# D. Returns a list with the segments of the time series where there is no NA
-# @param ts: time series to be split
-# @return list of complete fragments of the time series
-split_ts_by_na <- function(ts){
-  return(split(ts[!is.na(ts)], cumsum(is.na(ts))[!is.na(ts)]))
-}
-
-
-# E. Perform several NA imputation methods on a group of ids and evaluate their predictions using RMSE and MAPE
+# C. Perform several NA imputation methods on a group of ids and evaluate their predictions using RMSE and MAPE
 # Methods: na.locf, na.ma, na.approx, na.aggregate and na.spline.
 # @param ids: ids of devices to perform NA imputation metrics on
-# @param na_ratio: ratio of NA to be added
-# @param seed: random seed
 # @param isNode: boolean variable. If TRUE, param ids is node names. If FALSE, it is mac addresses
 # @param is_snr_dn: boolean variable. If TRUE, imputaion is done in snr_dn time series. If FALSE, it is done in pathloss.
 # @return dataframe with the average scores for each node and method 
-summary_na_imputation <- function(ids, na_ratio, seed=NULL, isNode=TRUE, is_snr_dn=TRUE){
-  summary_df <- data.frame(id=character(), num_segments=integer(), 
-                           imputation=character(), avg_mape=double(), avg_rmse=double())
+summary_na_imputation <- function(ids, isNode=TRUE, is_snr_dn=TRUE){
+  summary_df <- data.frame(id=character(), imputation=character(), avg_mape=double(), avg_rmse=double())
   
   for(n in ids){
     
@@ -689,89 +644,51 @@ summary_na_imputation <- function(ids, na_ratio, seed=NULL, isNode=TRUE, is_snr_
       id_ts <- node_get_time_series(n)$avg
     }
     
-    # Obtain the parts of the time series with no NA
-    split_ts <- split_ts_by_na(id_ts)
-    
-    # Remove those parts where there is only one value or no value
-    split_ts <- Filter(function(x)length(x)>1, split_ts)
-    
-    # If the time series is empty, do next id
-    if(length(split_ts) == 0){
+    # na.locf needs a TS with at least one numerical value
+    # so any TS with all NA will be skipped
+    if(sum(is.na(id_ts))== length(id_ts)){
+      next
+    # na.ma needs a TS with at least two numerical values
+    # so any TS with less than two numerical values will be skipped      
+    }else if(sum(is.na(id_ts)) > length(id_ts)-2){
       next
     }
     
-    rmse_locf = 0
-    mape_locf = 0
-    rmse_approx = 0 
-    mape_approx = 0
-    rmse_spline = 0
-    mape_spline = 0
-    rmse_aggre = 0
-    mape_aggre = 0
-    rmse_ma = 0
-    mape_ma = 0
+    filled_ts <- na.aggregate(id_ts)
     
-    for(sts in split_ts){
-      sts <- as.ts(sts)
-      
-      if(length(sts)> 1){
-        # For each complete fragment of the time series, add NA
-        sts_na <- create_missing(sts, na_ratio, seed=seed)
-        sts_na <- sts_na$data
-        
-      }else{
-        next
-      }
-      
-      # Perform the imputation methods to those fragments with NA to obtain TS with predicted values
-      sts_locf <- na.locf(sts_na)
-      sts_approx <-na.approx(sts_na)
-      sts_spline <-na.spline(sts_na)
-      sts_aggre <- na.aggregate(sts_na)
-      sts_ma <- na.ma(sts_na)
-      
-      # Run the RMSE and MAPE metrics for each imputation method
-      # In each metric we are evaluating the fragments with predicted
-      # values against the original fragments without NA
-      rmse_locf <- rmse_locf + rmse(sts, sts_locf)
-      mape_locf <- mape_locf + mape(sts, sts_locf)
-      rmse_approx <- rmse_approx + rmse(sts, sts_approx)
-      mape_approx <- mape_approx + mape(sts, sts_approx)
-      rmse_spline <- rmse_spline + rmse(sts, sts_spline)
-      mape_spline <- mape_spline + mape(sts, sts_spline)
-      rmse_aggre <- rmse_aggre + rmse(sts, sts_aggre)
-      mape_aggre <- mape_aggre + mape(sts, sts_aggre)
-      rmse_ma <- rmse_ma + rmse(sts, sts_ma)
-      mape_ma <- mape_ma + mape(sts, sts_ma)
-    }
+    # Perform the imputation methods
+    sts_locf <- na.locf(id_ts)
+    sts_approx <-na.approx(id_ts)
+    sts_spline <-na.spline(id_ts)
+    sts_aggre <- na.aggregate(id_ts)
+    sts_ma <- na.ma(id_ts)
     
-    # For each method, we perform the mean in both metrics
-    len <- length(split_ts)
-    rmse_locf <- rmse_locf/len
-    mape_locf <- mape_locf/len
-    rmse_approx <- rmse_approx/len
-    mape_approx <- mape_approx/len
-    rmse_spline <- rmse_spline/len
-    mape_spline <- mape_spline/len
-    rmse_aggre <- rmse_aggre/len
-    mape_aggre <- mape_aggre/len
-    rmse_ma <- rmse_ma/len
-    mape_ma <- mape_ma/len
+    # Run the RMSE and MAPE metrics for each imputation method
+    rmse_locf <- rmse(filled_ts, sts_locf)
+    mape_locf <- mape(filled_ts, sts_locf)
+    rmse_approx <- rmse(filled_ts, sts_approx)
+    mape_approx <- mape(filled_ts, sts_approx)
+    rmse_spline <- rmse(filled_ts, sts_spline)
+    mape_spline <- mape(filled_ts, sts_spline)
+    rmse_aggre <- rmse(filled_ts, sts_aggre)
+    mape_aggre <- mape(filled_ts, sts_aggre)
+    rmse_ma <- rmse(filled_ts, sts_ma)
+    mape_ma <- mape(filled_ts, sts_ma)
     
     # We add the average values in a data frame
-    summary_df <- rbind(summary_df, data.frame(id_name=n, num_segments=len, imputation="na.locf", avg_mape=mape_locf, avg_rmse=rmse_locf))
-    summary_df <- rbind(summary_df, data.frame(id_name=n, num_segments=len, imputation="na.approx", avg_mape=mape_approx, avg_rmse=rmse_approx))
-    summary_df <- rbind(summary_df, data.frame(id_name=n, num_segments=len, imputation="na.spline", avg_mape=mape_spline, avg_rmse=rmse_spline))
-    summary_df <- rbind(summary_df, data.frame(id_name=n, num_segments=len, imputation="na.aggregate", avg_mape=mape_aggre, avg_rmse=rmse_aggre))
-    summary_df <- rbind(summary_df, data.frame(id_name=n, num_segments=len, imputation="na.ma", avg_mape=mape_ma, avg_rmse=rmse_ma))
+    summary_df <- rbind(summary_df, data.frame(id_name=n, imputation="na.locf", avg_mape=mape_locf, avg_rmse=rmse_locf))
+    summary_df <- rbind(summary_df, data.frame(id_name=n, imputation="na.approx", avg_mape=mape_approx, avg_rmse=rmse_approx))
+    summary_df <- rbind(summary_df, data.frame(id_name=n, imputation="na.spline", avg_mape=mape_spline, avg_rmse=rmse_spline))
+    summary_df <- rbind(summary_df, data.frame(id_name=n, imputation="na.aggregate", avg_mape=mape_aggre, avg_rmse=rmse_aggre))
+    summary_df <- rbind(summary_df, data.frame(id_name=n, imputation="na.ma", avg_mape=mape_ma, avg_rmse=rmse_ma))
   }
-  
   return(summary_df) 
   
 }
 
-# 2. Perform NA imputation methods on all the reference nodes with a ratio of NA of 20%
-df_summ <- summary_na_imputation(get_reference_nodes(), na_ratio = 0.2, seed=123)
+# ---------------------------- NODE TS IMPUTATION EVALUATION - SNR_UP ---------------
+# 2. Perform NA imputation methods on all the reference nodes 
+df_summ <- summary_na_imputation(get_reference_nodes())
 
 # Obtain the average scores for the nodes
 # 2.1 Obtain the average score of the MAPE and RMSE for the method na.aggregate
@@ -804,8 +721,10 @@ df_scores <- data.frame(avg_metric=character(), method=character(), snr_up=doubl
 df_scores <- rbind(df_scores, data.frame(avg_metric=c("MAPE", "MAPE", "MAPE", "MAPE", "MAPE", "RMSE", "RMSE", "RMSE", "RMSE", "RMSE")))
 df_scores <- cbind(df_scores, data.frame(method=c("aggregate", "approx", "locf", "ma", "spline", "aggregate", "approx", "locf", "ma", "spline")))
 df_scores <- cbind(df_scores, data.frame(snr_up=c(avg_mape_agg, avg_mape_approx, avg_mape_locf, avg_mape_ma, avg_mape_spline,
-                                         avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
+                                                  avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
 
+
+# ------------------------- MAC TS IMPUTATION EVALUATION - SNR_DN --------------------
 # 3. Obtain the average scores for the mac series
 
 # E. Obtain all the mac addresses for the reference nodes
@@ -820,7 +739,7 @@ list_macs <- get_all_macs()
 list_macs <- Filter(function(x)x!="", list_macs)
 
 #Evaluate the NA imputation for the mac addresses regarding the snr_dn variable
-df_summ_mac_snr <- summary_na_imputation(list_macs, na_ratio = 0.2, seed=123, isNode=FALSE)
+df_summ_mac_snr <- summary_na_imputation(list_macs, isNode=FALSE)
 
 # 3.1 Obtain the average score of the MAPE and RMSE for the method na.aggregate
 df_agg <- df_summ_mac_snr[df_summ_mac_snr$imputation=="na.aggregate",]
@@ -851,8 +770,9 @@ avg_rmse_ma <- mean(df_ma$avg_rmse)
 df_scores <- cbind(df_scores, data.frame(snr_dn=c(avg_mape_agg, avg_mape_approx, avg_mape_locf, avg_mape_ma, avg_mape_spline,
                                                   avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
 
+# ---------------------- MAC TS IMPUTATION EVALUATION - PATHLOSS  -------------------
 # 4. Evaluate the NA imputation for the mac addresses regarding the pathloss variable
-df_summ_mac_pathloss <- summary_na_imputation(list_macs, na_ratio = 0.2, seed=123, isNode=FALSE, is_snr_dn = FALSE)
+df_summ_mac_pathloss <- summary_na_imputation(list_macs, isNode=FALSE, is_snr_dn = FALSE)
 
 # 4.1 Obtain the average score of the MAPE and RMSE for the method na.aggregate
 df_agg <- df_summ_mac_pathloss[df_summ_mac_pathloss$imputation=="na.aggregate",]
@@ -880,9 +800,8 @@ avg_mape_ma <- mean(df_ma$avg_mape)
 avg_rmse_ma <- mean(df_ma$avg_rmse)
 
 # 4.6 Add scores for the pathloss imputation
-
 df_scores <- cbind(df_scores, data.frame(pathloss=c(avg_mape_agg, avg_mape_approx, avg_mape_locf, avg_mape_ma, avg_mape_spline,
-                                                  avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
+                                                    avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
 
 
 ######################################################################################################
