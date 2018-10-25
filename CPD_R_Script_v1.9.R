@@ -803,22 +803,8 @@ avg_rmse_ma <- mean(df_ma$avg_rmse)
 df_scores <- cbind(df_scores, data.frame(pathloss=c(avg_mape_agg, avg_mape_approx, avg_mape_locf, avg_mape_ma, avg_mape_spline,
                                                     avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
 
-# ------- NA IMPUTATION FUNCTION ------
-
-# The best imputation method was na.ma
-
-# E. Function to impute NA using na.ma or na.aggregate
-# @param ts time series to impute NA
-# @return ts without NA
-impute_na <- function(ts){
-  # na.ma needs a TS with at least two numerical values so
-  # any TS with less than two numerical values will be filled with na.aggregate  
-  if(sum(is.na(ts)) > length(ts)-2){
-    return(na.aggregate(ts))
-  }
-  return(na.ma(ts))
-}
-
+              
+                    
 # ------- NA IMPUTATION FOR NODE TIME SERIES --------
 
 node_ts <- node_data[node_data$node_name!="", c("node_name", "hour_stamp","avg")]
