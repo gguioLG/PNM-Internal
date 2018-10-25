@@ -831,7 +831,48 @@ mac_ts <- mac_ts %>%
 mac_ts <- mac_ts[!is.na(mac_ts$pathloss),]
 mac_ts$snr_dn <- NULL
 mac_ts$pathloss <- NULL
-                    
+   
+# ------ DWT------------------------
+library(TSdist)
+df_ts_sim <- data.frame(node=character(), mac_address=character(), 
+                          sim_snr=double(), sim_pathloss=double())
+
+nodes <- unique(node_ts$node_name)
+
+for (n in nodes){
+  
+  x1<-node_ts[node_ts$node_name == n, "avg_snr_up"]
+  
+  for (m in unique(mac_ts$mac_address[mac_ts$node_name==n])){
+    x2<-mac_ts[mac_ts$mac_address == m, c("snr_dn_ma_expo", "pathloss_ma_expo")]
+    sim_snr <- DTWDistance(x1$avg_snr_up,x2$snr_dn_ma_expo)
+    sim_pathloss <- DTWDistance(x1$avg_snr_up,x2$pathloss_ma_expo)
+    df_ts_sim <- rbind(df_ts_sim, data.frame(node=n, mac_address=m, sim_snr=sim_snr, sim_pathloss=sim_pathloss))
+  }
+  
+} 
+
+# --------------------- Plots of examples of node and mac addresses similar signals -------
+node <- node_ts[node_ts$node_name=="8181N34",]
+mac1 <- mac_ts[mac_ts$mac_address == "FC8E7E8F03ED",]
+mac2 <- mac_ts[mac_ts$mac_address == "54FA3EB7C389",]
+a <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Node 8181N34 average upstream SNR")) + 
+  geom_line(data=mac1, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address FC8E7E8F03ED  downstream SNR")) +
+  geom_line(data=mac2, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address 54FA3EB7C389 downstream SNR"))+
+  labs(title="Node and two most similar MAC addresses based on average SNR up and SNR down similarity") + 
+  xlab("Time") + ylab("dB") + theme_bw() + theme(legend.title=element_blank(), legend.position="bottom")
+
+a
+
+mac1 <- mac_ts[mac_ts$mac_address == "905C441AAB9B",]
+mac2 <- mac_ts[mac_ts$mac_address == "AC2205BA375C",]
+b <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Node 8181N34 average upstream SNR")) + 
+  geom_line(data=mac1, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address 905C441AAB9B pathloss")) +
+  geom_line(data=mac2, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address AC2205BA375C pathloss"))+
+  labs(title="Node and two most similar MAC addresses based on average SNR up and pathloss similarity") + 
+  xlab("Time") + ylab("dB") + theme_bw() + theme(legend.title=element_blank(), legend.position="bottom")
+
+b                  
                     
 ######################################################################################################
 ##### --- Module 6. Principal Component Analysis & Clustering --- ####################################
