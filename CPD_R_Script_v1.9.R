@@ -817,7 +817,7 @@ node_ts$avg <- NULL
 
 # ------- NA IMPUTATION FOR MAC ADDRESSES TIME SERIES --------
 
-mac_ts <- mac_data[mac_data$mac_address!="", c("mac_address", "hour_stamp","snr_dn", "pathloss")]
+mac_ts <- mac_data[mac_data$mac_address!="", c("node_name","mac_address", "hour_stamp","snr_dn", "pathloss")]
 mac_ts <- mac_ts %>%
       group_by(mac_address) %>%
        mutate(snr_dn_ma_expo=if(sum(!is.na(snr_dn)) >=2) na.ma(snr_dn) else NA)
@@ -864,15 +864,15 @@ a <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Nod
 
 a
 
-mac1 <- mac_ts[mac_ts$mac_address == "905C441AAB9B",]
-mac2 <- mac_ts[mac_ts$mac_address == "AC2205BA375C",]
+mac3 <- mac_ts[mac_ts$mac_address == "905C441AAB9B",]
+mac4 <- mac_ts[mac_ts$mac_address == "AC2205BA375C",]
 b <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Node 8181N34 average upstream SNR")) + 
-  geom_line(data=mac1, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address 905C441AAB9B pathloss")) +
-  geom_line(data=mac2, aes(x=hour_stamp, y=snr_dn_ma_expo, colour="MAC address AC2205BA375C pathloss"))+
+  geom_line(data=mac3, aes(x=hour_stamp, y=pathloss_ma_expo, colour="MAC address 905C441AAB9B pathloss")) +
+  geom_line(data=mac4, aes(x=hour_stamp, y=pathloss_ma_expo, colour="MAC address AC2205BA375C pathloss"))+
   labs(title="Node and two most similar MAC addresses based on average SNR up and pathloss similarity") + 
   xlab("Time") + ylab("dB") + theme_bw() + theme(legend.title=element_blank(), legend.position="bottom")
 
-b                  
+b                 
                     
 ######################################################################################################
 ##### --- Module 6. Principal Component Analysis & Clustering --- ####################################
