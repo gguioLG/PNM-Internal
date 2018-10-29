@@ -649,8 +649,8 @@ summary_na_imputation <- function(ids, isNode=TRUE, is_snr_dn=TRUE){
     # so any TS with all NA will be skipped
     if(sum(is.na(id_ts))== length(id_ts)){
       next
-    # na.ma needs a TS with at least two numerical values
-    # so any TS with less than two numerical values will be skipped      
+      # na.ma needs a TS with at least two numerical values
+      # so any TS with less than two numerical values will be skipped      
     }else if(sum(is.na(id_ts)) > length(id_ts)-2){
       next
     }
@@ -728,7 +728,7 @@ df_scores <- cbind(df_scores, data.frame(snr_up=c(avg_mape_agg, avg_mape_approx,
 # ------------------------- MAC TS IMPUTATION EVALUATION - SNR_DN --------------------
 # 3. Obtain the average scores for the mac series
 
-# E. Obtain all the mac addresses for the reference nodes
+# D. Obtain all the mac addresses for the reference nodes
 # @return array of unique mac addresses for the reference nodes
 get_all_macs <- function(){
   return (unique(mac_data[,"mac_address"]))
@@ -804,16 +804,15 @@ avg_rmse_ma <- mean(df_ma$avg_rmse)
 df_scores <- cbind(df_scores, data.frame(pathloss=c(avg_mape_agg, avg_mape_approx, avg_mape_locf, avg_mape_ma, avg_mape_spline,
                                                     avg_rmse_agg, avg_rmse_approx, avg_rmse_locf, avg_rmse_ma, avg_rmse_spline)))
 
-              
-                    
-# ------- NA IMPUTATION FOR NODE TIME SERIES --------
 
+# ------- NA IMPUTATION FOR NODE TIME SERIES --------
+library(dplyr)
 node_ts <- node_data[node_data$node_name!="", c("node_name", "hour_stamp","avg")]
 node_ts <- node_ts %>%
   group_by(node_name) %>%
   mutate(avg_snr_up=if(sum(!is.na(avg)) >=2) na.ma(avg) else NA)
 
-node_ts <- node_ts[!is.na(node_ts$avg),]
+node_ts <- node_ts[!is.na(node_ts$avg_snr_up),]
 node_ts$avg <- NULL
 
 # ------- NA IMPUTATION FOR MAC ADDRESSES TIME SERIES --------
@@ -823,37 +822,50 @@ mac_ts <- mac_ts %>%
       group_by(mac_address) %>%
        mutate(snr_dn_ma_expo=if(sum(!is.na(snr_dn)) >=2) na.ma(snr_dn) else NA)
 
-mac_ts <- mac_ts[!is.na(mac_ts$snr_dn),]
+mac_ts <- mac_ts[!is.na(mac_ts$snr_dn_ma_expo),]
 
 mac_ts <- mac_ts %>%
   group_by(mac_address) %>%
   mutate(pathloss_ma_expo=if(sum(!is.na(pathloss)) >=2) na.ma(pathloss) else NA)
 
-mac_ts <- mac_ts[!is.na(mac_ts$pathloss),]
+mac_ts <- mac_ts[!is.na(mac_ts$pathloss_ma_expo),]
 mac_ts$snr_dn <- NULL
 mac_ts$pathloss <- NULL
-   
-# ------ DWT------------------------
+
+# ---------------------- Similarity distances -------------------------
 library(TSdist)
-df_ts_sim <- data.frame(node=character(), mac_address=character(), 
-                          sim_snr=double(), sim_pathloss=double())
 
 nodes <- unique(node_ts$node_name)
+normalise <- function(x){(x-min(x))/(max(x)-min(x))} 
 
-for (n in nodes){
+calculate_similarity <- function(nodes, fun=DTWDistance, ...){
   
-  x1<-node_ts[node_ts$node_name == n, "avg_snr_up"]
-  
-  for (m in unique(mac_ts$mac_address[mac_ts$node_name==n])){
-    x2<-mac_ts[mac_ts$mac_address == m, c("snr_dn_ma_expo", "pathloss_ma_expo")]
-    sim_snr <- DTWDistance(x1$avg_snr_up,x2$snr_dn_ma_expo)
-    sim_pathloss <- DTWDistance(x1$avg_snr_up,x2$pathloss_ma_expo)
-    df_ts_sim <- rbind(df_ts_sim, data.frame(node=n, mac_address=m, sim_snr=sim_snr, sim_pathloss=sim_pathloss))
+  df_ts_sim <- data.frame(node=character(), mac_address=character(), 
+                            sim_snr=double(), sim_pathloss=double())
+  for (n in nodes){
+    
+    x1<-node_ts[node_ts$node_name == n, "avg_snr_up"]
+    
+    for (m in unique(mac_ts$mac_address[mac_ts$node_name==n])){
+      x2<-mac_ts[mac_ts$mac_address == m, c("snr_dn_ma_expo", "pathloss_ma_expo")]
+      sim_snr <- fun(x1$avg_snr_up,x2$snr_dn_ma_expo)
+      sim_pathloss <- fun(x1$avg_snr_up,x2$pathloss_ma_expo)
+      df_ts_sim <- rbind(df_ts_sim, data.frame(node=n, mac_address=m, sim_snr=sim_snr, sim_pathloss=sim_pathloss))
+    }
+    
   }
   
-} 
+  df_ts_sim$score <- rowMeans(df_ts_sim[,c("sim_snr","sim_pathloss")]) 
+  
+  return(df_ts_sim)
+}
 
-# --------------------- Plots of examples of node and mac addresses similar signals -------
+df_ts_sim <- calculate_similarity(nodes, fun=DTWDistance)
+df_ts_sim <- df_ts_sim %>% group_by(node) %>%  mutate(score_n=normalise(score))
+
+# ----------------- Example plots of similar nodes and mac addresses  --------
+
+# snr up vs snr dn
 node <- node_ts[node_ts$node_name=="8181N34",]
 mac1 <- mac_ts[mac_ts$mac_address == "FC8E7E8F03ED",]
 mac2 <- mac_ts[mac_ts$mac_address == "54FA3EB7C389",]
@@ -865,6 +877,7 @@ a <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Nod
 
 a
 
+# snr up vs pathloss
 mac3 <- mac_ts[mac_ts$mac_address == "905C441AAB9B",]
 mac4 <- mac_ts[mac_ts$mac_address == "AC2205BA375C",]
 b <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Node 8181N34 average upstream SNR")) + 
@@ -873,7 +886,19 @@ b <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Nod
   labs(title="Node and two most similar MAC addresses based on average SNR up and pathloss similarity") + 
   xlab("Time") + ylab("dB") + theme_bw() + theme(legend.title=element_blank(), legend.position="bottom")
 
-b                 
+b
+
+# based on score
+node <- node_ts[node_ts$node_name=="8181N34",]
+mac3 <- mac_ts[mac_ts$mac_address == "905C441AAB9B",]
+mac4 <- mac_ts[mac_ts$mac_address == "AC2205BA375C",]
+c <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Node 8181N34 average upstream SNR")) + 
+  geom_line(data=mac3, aes(x=hour_stamp, y=pathloss_ma_expo, colour="MAC address 905C441AAB9B pathloss")) +
+  geom_line(data=mac4, aes(x=hour_stamp, y=pathloss_ma_expo, colour="MAC address AC2205BA375C pathloss"))+
+  labs(title="Node and two most similar MAC addresses based on average SNR up and pathloss similarity") + 
+  xlab("Time") + ylab("dB") + theme_bw() + theme(legend.title=element_blank(), legend.position="bottom")
+
+c 
                     
 ######################################################################################################
 ##### --- Module 6. Principal Component Analysis & Clustering --- ####################################
