@@ -11,9 +11,9 @@
 # Module 1: Ben's code for establishing a database connection.
 # Module 2: Time Series Analyses using Nodes and MAC Addresses datasets.
 # Module 3: Exploratory Data Analyses, basic statistics & histograms.
-# Module 4: Bayesian Network Development and printing the resulting graphs to pdf.
-# Module 5: Evaluation of NA imputation methods
-# Module 6: Principal Component Analysis & Clustering
+# Module 4: Evaluation of NA imputation methods
+# Module 5: Principal Component Analysis & Clustering
+# Module 6: Bayesian Network Development and printing the resulting graphs to pdf.
 
 # Notes / Comments / Logs;
 # Log 1; 17/10/2018: Some EDA functions from the young graduates were added.
@@ -26,6 +26,7 @@
 # Log 8; 22/10/2018: BNs can be produced as a result of Module 4 and printed on a pdf file.
 # Log 9; 24/10/2018: Updated time series functions and added the code to evaluate NA imputation methods.
 # Log 10; 25/10/2018: Updated time series NA imputation code. Updated pollingTest_CPE database query.
+# Log 10; 29/10/2018: Updated Bayesian Network Development and printing the resulting graphs to pdf in Module #6, removing previous module #4, and renumbering modules
 
 # To-do List;
 # Next tasks in line:
@@ -493,108 +494,8 @@ pathloss_dist <- pathloss_dist[pathloss_dist$mac_address!="",]
 summary(pathloss_dist$pathloss)
 hist(pathloss_dist$pathloss, xlim=c(10,60), xlab="Average pathloss", main="Histogram of average pathloss per mac address")
 
-##################################################################################################################
-##### --- Module 4. Bayesian Network Development --- #############################################################
-##################################################################################################################
-
-library(bnlearn) # The package to develop Bayesian Networks and make use of the utilities, methods and the structure learning / Scoring Algorithms
-#library(ggplot2)
-#library(graphics)
-#library(graph)
-#library(igraph)
-#library(lattice) # for plotting the bn.fit instances
-#library(Rgraphviz)
-#library(gRain)
-
-# To Read & Write Excel files
-library(readxl)
-library(xlsx)
-
-# Supplementary packages
-#library(deal) ## Used for rgraphviz
-#library(pcalg) ## Used for rgraphviz
-#library(stringr) ## Pipe
-#library(BiocInstaller) ## Advance Graphics
-#library(BayesianNetwork) 
-#library(datasets) ## Advance manipulation of Datasets
-#library(gRbase)   ## part of Shiny
-#library(networkD3) ## part of Shiny
-#library(dplyr)
-#library(Magrittr)
-#library(ROCR)
-#library(Rmpfr)
-#library(gmp)
-
-Nodes_dataframe <- read.csv(file="Inputs/Toy_Nodes_Dataset.csv", header = TRUE)
-MACs_dataframe <- read.csv(file="Inputs/Toy_MACs_Dataset.csv", header = TRUE)
-
-# 4.1 DATA CLEANING & PRE-PROCESSING
-# Convert mac_address from integer to numeric.
-MACs_dataframe$mac_address <- as.numeric(MACs_dataframe$mac_address)
-
-# 4.2 OBTAINING THE NETWORKS FROM EMBEDDED ALGORITHMS
-# Algorithms for learning structure from the dataset (Constraint-based, Score-based, and Hybrid algorithms);
-
-# 4.2.1. Grow-shrink algorithm
-Nodes_gs_Network = gs(Nodes_dataframe)
-MACs_gs_Network = gs(MACs_dataframe)
-
-# 4.2.2. Hill climb (a.k.a Greedy search) algorithm
-Nodes_hc_Network = hc(Nodes_dataframe)
-MACs_hc_Network = hc(MACs_dataframe)
-
-# 4.2.3. Fast incremental association algorithm
-Nodes_iamb_Network = iamb(Nodes_dataframe)
-MACs_iamb_Network = iamb(MACs_dataframe)
-
-# 4.2.4 Tabu network
-Nodes_tabu_Network = tabu(Nodes_dataframe)
-MACs_tabu_Network = tabu(MACs_dataframe)
-
-# 4.3 BASIC PLOTTING OF THE BNs
-
-# 4.3.1. Plotting the Grow-shrink algorithm network
-plot(Nodes_gs_Network)
-plot(MACs_gs_Network)
-
-# 4.3.2. plotting the Hill-climb algorithm network
-plot(Nodes_hc_Network)
-plot(MACs_hc_Network)
-
-# 4.3.3. plotting the IAMB algorithm network
-plot(Nodes_iamb_Network)
-plot(MACs_iamb_Network)
-
-# 4.3.4. plotting the Tabu algorithm results
-plot(Nodes_tabu_Network)
-plot(MACs_tabu_Network)
-
-# 4.4 PRINTING GRAPHS TO A PDF
-
-# Begin writing to pdf.
-pdf("Liberty Global - Bayesian Network Graphs for Time Series Analyses.pdf")
-
-# 4.4.1 Draw the networks derived from grow shrink algorithm
-graphviz.plot(Nodes_gs_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Grow-Shrink Algorithm Network, Nodes Time Series", sub = NULL)
-graphviz.plot(MACs_gs_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Grow-Shrink Algorithm Network, MAC Addressses Time Series", sub = NULL)
-
-# 4.4.2 Draw the network derived from hill climb algorithm
-graphviz.plot(Nodes_hc_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Hill-Climb Algorithm Network, Nodes Time Series", sub = NULL)
-graphviz.plot(MACs_hc_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Hill-Climb Algorithm Network, MAC Addresses Time Series", sub = NULL)
-
-# 4.4.3 Draw the network derived from iamb algorithm
-graphviz.plot(Nodes_iamb_Network, highlight = NULL, layout = "dot", shape = "circle", main = "IAMB Algorithm Network, Nodes Time Series", sub = NULL)
-graphviz.plot(MACs_iamb_Network, highlight = NULL, layout = "dot", shape = "circle", main = "IAMB Algorithm Network, MAC Addresses Time Series", sub = NULL)
-
-# 4.4.4 Draw the network derived from tabu algorithm
-graphviz.plot(Nodes_iamb_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Tabu Algorithm Network, Nodes Time Series", sub = NULL)
-graphviz.plot(MACs_iamb_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Tabu Algorithm Network, MAC Addresses Time Series", sub = NULL)
-
-# End writing to pdf.
-dev.off()
-
 ######################################################################################################
-##### --- Module 5. Evaluation of NA imputation methods --- ##########################################
+##### --- Module 4. Evaluation of NA imputation methods --- ##########################################
 ######################################################################################################
 library(zoo)
 library(imputeTS)
@@ -940,7 +841,7 @@ c <- ggplot() + geom_line(data=node, aes(x=hour_stamp, y=avg_snr_up, colour="Nod
 c 
                     
 ######################################################################################################
-##### --- Module 6. Principal Component Analysis & Clustering --- ####################################
+##### --- Module 5. Principal Component Analysis & Clustering --- ####################################
 ######################################################################################################
 # A. Getting Data into correct format for PCA
 nodes_names_list <- unique(NodeData$node_name) #list unique nodes
@@ -1159,3 +1060,40 @@ boxplot(mac_add_DS$NA_Percentage_snr_dn ~ k2$cluster,
 boxplot(mac_add_DS$mean_pathloss ~ k2$cluster,
         xlab='Cluster', ylab='NA %',
         main='NA % by cluster')
+
+                                                     
+##################################################################################################################
+##### --- Module 6. Bayesian Network Development --- #############################################################
+##################################################################################################################
+                                                     
+# BAYESIAN NETWORK DEVELOPMENT BY METE.
+
+# 1. Package calls
+library(bnlearn)
+
+# Creating an input dataframe for the algorithms.
+BN_input <- mac_add_DS
+
+# 2. Development of networks using different structure learning algorithms that are embedded in bnlearn package. (Constraint-based, Score-based, and Hybrid algorithms);
+GS_Network = gs(BN_input)
+HC_Network = hc(BN_input)
+IAMB_Network = iamb(BN_input)
+TABU_Network = tabu(BN_input)
+
+# 3. Plotting the network graphs for visualization.
+plot(GS_Network)
+plot(HC_Network)
+plot(IAMB_Network)
+plot(TABU_Network)
+
+# 4 Printing graphs to a pdf.
+pdf("Liberty Global - Bayesian Network Graphs for MAC Features.pdf")
+
+# Content of the pdf.
+graphviz.plot(GS_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Grow-Shrink Algorithm Network", sub = "Mac Features Dataset")
+graphviz.plot(HC_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Hill-Climb Algorithm Network", sub = "Mac Features Dataset")
+graphviz.plot(IAMB_Network, highlight = NULL, layout = "dot", shape = "circle", main = "IAMB Algorithm Network", sub = "Mac Features Dataset")
+graphviz.plot(TABU_Network, highlight = NULL, layout = "dot", shape = "circle", main = "Tabu Algorithm Network", sub = "Mac Features Dataset")
+
+# End writing to pdf.
+dev.off()                                                     
