@@ -834,34 +834,73 @@ mac_ts$pathloss <- NULL
 
 # ---------------------- Similarity distances -------------------------
 library(TSdist)
+library(matrixStats)
 
-nodes <- unique(node_ts$node_name)
+# A. Converts values to range [0,1]
+# @param x array of values
 normalise <- function(x){(x-min(x))/(max(x)-min(x))} 
 
-calculate_similarity <- function(nodes, fun=DTWDistance, ...){
-  
-  df_ts_sim <- data.frame(node=character(), mac_address=character(), 
-                            sim_snr=double(), sim_pathloss=double())
-  for (n in nodes){
-    
-    x1<-node_ts[node_ts$node_name == n, "avg_snr_up"]
-    
-    for (m in unique(mac_ts$mac_address[mac_ts$node_name==n])){
-      x2<-mac_ts[mac_ts$mac_address == m, c("snr_dn_ma_expo", "pathloss_ma_expo")]
-      sim_snr <- fun(x1$avg_snr_up,x2$snr_dn_ma_expo)
-      sim_pathloss <- fun(x1$avg_snr_up,x2$pathloss_ma_expo)
-      df_ts_sim <- rbind(df_ts_sim, data.frame(node=n, mac_address=m, sim_snr=sim_snr, sim_pathloss=sim_pathloss))
+# B. Function to calculate the similarity between node snr up vs mac address snr dn and node snr up vs mac address pathloss
+# @param nodes: node names array
+# @param ...: additional parameters to calculate the distances, such distance and other parameters required by the distance method 
+# @return data frame containig similarity distances and score columns
+calculate_similarity <- function(nodes, ...){
+  df_ts_sim <- data.frame(sim_snr=double(), sim_pathloss=double())
+    for (n in nodes){
+      x1<-node_ts[node_ts$node_name == n, "avg_snr_up"]
+      
+      for (m in unique(mac_ts$mac_address[mac_ts$node_name==n])){
+        x2<-mac_ts[mac_ts$mac_address == m, c("snr_dn_ma_expo", "pathloss_ma_expo")]
+        
+        sim_snr <- TSDistances(x1$avg_snr_up,x2$snr_dn_ma_expo, ...)
+        sim_pathloss <- TSDistances(x1$avg_snr_up,x2$pathloss_ma_expo, ...) 
+        
+        df_ts_sim <- rbind(df_ts_sim, data.frame(sim_snr=sim_snr, sim_pathloss=sim_pathloss))
+      }
     }
+    df_ts_sim[,"score"] <- rowMeans(df_ts_sim[,c("sim_snr","sim_pathloss")])
     
-  }
-  
-  df_ts_sim$score <- rowMeans(df_ts_sim[,c("sim_snr","sim_pathloss")]) 
   
   return(df_ts_sim)
 }
 
-df_ts_sim <- calculate_similarity(nodes, fun=DTWDistance)
-df_ts_sim <- df_ts_sim %>% group_by(node) %>%  mutate(score_n=normalise(score))
+
+#get reference nodes
+unique_nodes <- unique(node_ts$node_name)
+#unique_nodes <- "1029N01"
+
+# obtain node-mac address pairs
+sim_scores <- mac_ts %>% filter(node_name %in% unique_nodes) %>% filter(mac_address!="") %>%
+    select(node_name, mac_address) %>% group_by(node_name, mac_address) %>% distinct()
+
+# Calculate similarity score using DTW and normalise it per node
+sim_scores[,"score"] <- calculate_similarity(unique_nodes, distance = "dtw")$score
+sim_scores <- sim_scores %>% group_by(node_name) %>%  mutate(score_dtw=normalise(score))
+
+# Calculate similarity score using EDR and normalise it per node
+sim_scores[,"score"] <- calculate_similarity(unique_nodes, distance = "edr", epsilon=0.1)$score
+sim_scores <- sim_scores %>% group_by(node_name) %>%  mutate(score_edr=normalise(score))
+
+# Calculate similarity score using ERP and normalise it per node
+sim_scores[,"score"] <- calculate_similarity(unique_nodes, distance = "erp", g=0)$score
+sim_scores <- sim_scores %>% group_by(node_name) %>%  mutate(score_erp=normalise(score))
+
+# Calculate similarity score using LCSS and normalise it per node
+sim_scores[,"score"] <- calculate_similarity(unique_nodes, distance = "lcss", epsilon=0.1)$score
+sim_scores <- sim_scores %>% group_by(node_name) %>%  mutate(score_lcss=normalise(score))
+
+# Calculate similarity score using TQUEST and normalise it per node
+sim_scores[,"score"] <- calculate_similarity(unique_nodes, distance = "tquest", tau=0)$score
+sim_scores <- sim_scores %>% group_by(node_name) %>%  mutate(score_tquest=normalise(score))
+
+# Delete the auxiliary column
+sim_scores$score <- NULL
+
+# Obtain mean, median and sd per node-mac address pair
+num_scores <- length(sim_scores)
+sim_scores$mean_score <- rowMeans(sim_scores[,c(3:num_scores)])
+sim_scores$median_score <- rowMedians(as.matrix(sim_scores[,c(3:num_scores)]))
+sim_scores$sd_score <- rowSds(as.matrix(sim_scores[,c(3:num_scores)]))
 
 # ----------------- Example plots of similar nodes and mac addresses  --------
 
