@@ -905,137 +905,140 @@ c
 ######################################################################################################
 # A. Getting Data into correct format for PCA
 nodes_names_list <- unique(NodeData$node_name) #list unique nodes
-#node_s_1029N01 <- NodeData[NodeData$node_name == nodes_names_list[1], ]
-#node_s_1029N01 <- node_s_1029N01[order(node_s_1029N01$hour_stamp),]
-temp_nodes <- c("1029N01","1071N04", "8037N04", "3661N06", "94000N03", "4057N20")
 
 mylist <- list() #Reference list that will hold node + list mac add DF
-for( i in temp_nodes){ #change to nodes_name_list
+for( i in nodes_names_list){ #change to nodes_name_list
   df_temp <- CPEData[CPEData$node_name == i,] #Subset based on node_name
   mylist[[i]]  <- split(df_temp ,df_temp$src_node_id) #Split by mac add, create DF
 }
 
-#Create dummy list to hold aggregated mac addresses features for individual node
-node_x_mac_add <- data.frame(src_node_id=rep("", N), length_TS=rep("", N),NA_Percentage_snr_dn=rep("", N), NA_Percentage_pathloss=rep("", N),
-                            sd_snr_dn=rep("", N), sd_pathloss=rep("", N), mean_snr_dn=rep("", N),mean_pathloss=rep("", N),
-                            median_snr_dn=rep("", N),median_pathloss=rep("", N), max_snr_dn=rep("", N),max_pathloss=rep("", N),
-                            min_snr_dn=rep("", N),min_pathloss=rep("", N), snr_dn_snr_up=rep("", N), pathloss_tx_up=rep("", N),
-                            pathloss_rx_up=rep("", N), pathloss_tdiff=rep("", N), snr_dn_tdiff=rep("", N), pathloss_delta=rep("", N), 
-                            snr_dn_delta=rep("", N),
-                            stringsAsFactors=FALSE)
 
-z = 1
-for (z in 1: length(mylist[['8037N04']])){ #z in number of mac address in node #8037N04
-  dfx <- mylist[['8037N04']][[z]] #'' node of z mac add DF in list
-  hold_values <- list() #create an empty list to hold values
-  i=1
-  while (i < 20) {  #Loops through 20 times to create features by aggregating DF
-    #tx_pwr_up, rx_pwr_up , rx_pwr_dn, snr_dn, snr_up, pathloss, snr_up_median
-    #Creating extra features, 21 created..
-    hold_values[i] <- unique(dfx$src_node_id) #Mac add
-    i=i+1
-    hold_values[i] <- nrow(dfx)
-    i=i+1
-    hold_values[i] <- sum(is.na(dfx$snr_dn))/nrow(dfx)  #NA percentage
-    i=i+1
-    hold_values[i] <- sum(is.na(dfx$pathloss))/nrow(dfx)  #NA percentage
-    i=i+1
-    hold_values[i] <- sd(dfx$snr_dn, na.rm = TRUE)
-    i=i+1
-    hold_values[i] <- sd(dfx$pathloss, na.rm = TRUE)
-    i=i+1
-    hold_values[i] <- mean(dfx$snr_dn, na.rm = TRUE) #Mean of snr_dn
-    i=i+1
-    hold_values[i] <- mean(dfx$pathloss, na.rm = TRUE) #Mean of pathloss
-    i=i+1
-    hold_values[i] <- median(dfx$snr_dn, na.rm = TRUE) #Median of snr_dn
-    i=i+1
-    hold_values[i] <- median(dfx$pathloss, na.rm = TRUE) #Median of pathloss
-    i=i+1
-    hold_values[i] <- max(dfx$snr_dn, na.rm = TRUE) #Max of snr_dn
-    i=i+1
-    hold_values[i] <- max(dfx$pathloss, na.rm = TRUE) #Max of pathloss
-    i=i+1
-    hold_values[i] <- min(dfx$snr_dn, na.rm = TRUE) #Min of snr_dn
-    i=i+1
-    hold_values[i] <- min(dfx$pathloss, na.rm = TRUE) #Min of pathloss
-    i=i+1
-    hold_values[i] <- mean(dfx$snr_dn / dfx$snr_up, na.rm = TRUE)
-    i=i+1
-    hold_values[i] <- mean(dfx$pathloss / dfx$tx_pwr_up, na.rm = TRUE)
-    i=i+1
-    hold_values[i] <- mean(dfx$pathloss / dfx$rx_pwr_up, na.rm = TRUE)
-    i=i+1
-    
-    dfx_pathloss_tdiff <-dfx[!is.na(dfx$pathloss), ]
-    dfx_pathloss_tdiff <-dfx_pathloss_tdiff[order(dfx_pathloss_tdiff$src_node_id,
-                               dfx_pathloss_tdiff$hour_stamp), ]
-    dfx_pathloss_tdiff$pathloss_tdiff <-
-      unlist( tapply(dfx_pathloss_tdiff$hour_stamp, INDEX = dfx_pathloss_tdiff$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
-    
-    if (nrow(dfx_pathloss_tdiff) > 0) {
-      dfx_pathloss_tdiff <-
-        aggregate(pathloss_tdiff ~ src_node_id, data = dfx_pathloss_tdiff, function(x) {
-          mean(x)
-        }, na.action = NULL)
-      hold_values[i] <- dfx_pathloss_tdiff$pathloss_tdiff
-      
-    } else { hold_values[i] <- NA}
-    i=i+1
-    
-    dfx_snr_dn_tdiff <-dfx[!is.na(dfx$snr_dn), ]
-    dfx_snr_dn_tdiff <-dfx_snr_dn_tdiff[order(dfx_snr_dn_tdiff$src_node_id, dfx_snr_dn_tdiff$hour_stamp), ]
-    dfx_snr_dn_tdiff$snr_dn_tdiff <-
-      unlist( tapply(dfx_snr_dn_tdiff$hour_stamp, INDEX = dfx_snr_dn_tdiff$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
-    if (nrow(dfx_snr_dn_tdiff) > 0) {
-      dfx_snr_dn_tdiff <-
-        aggregate(snr_dn_tdiff ~ src_node_id, data = dfx_snr_dn_tdiff, function(x) {
-          mean(x)
-        }, na.action = NULL)
-      hold_values[i] <- dfx_snr_dn_tdiff$snr_dn_tdiff
-      
-    } else { hold_values[i] <- NA}
-    i=i+1
-    ##
-    dfx_pathloss_delta <-dfx[!is.na(dfx$pathloss), ]
-    dfx_pathloss_delta <-dfx_pathloss_delta[order(dfx_pathloss_delta$src_node_id, dfx_pathloss_delta$hour_stamp), ]
-    dfx_pathloss_delta$pathloss_delta <-unlist( tapply(dfx_pathloss_delta$pathloss, INDEX = dfx_pathloss_delta$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
-    if (nrow(dfx_pathloss_delta) > 0) {
-      dfx_pathloss_delta <-
-        aggregate(pathloss_delta ~ src_node_id, data = dfx_pathloss_delta, function(x) {
-          mean(x)
-        }, na.action = NULL)
-      hold_values[i] <- dfx_pathloss_delta$pathloss_delta
-      
-    } else { hold_values[i] <- NA}
-    i=i+1
-    
-    dfx_snr_dn_delta <-dfx[!is.na(dfx$snr_dn), ]
-    dfx_snr_dn_delta <-dfx_snr_dn_delta[order(dfx_snr_dn_delta$src_node_id, dfx_snr_dn_delta$hour_stamp), ]
-    dfx_snr_dn_delta$snr_dn_delta <-unlist( tapply(dfx_snr_dn_delta$snr_dn, INDEX = dfx_snr_dn_delta$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
+#Create dummy list to hold aggregated mac addresses feature list
+mac_add_DS <- data.frame(src_node_id=character(), length_TS=character(),NA_Percentage_snr_dn=character(), NA_Percentage_pathloss=character(),
+                             sd_snr_dn=character(), sd_pathloss=character(), mean_snr_dn=character(),mean_pathloss=character(),
+                             median_snr_dn=character(),median_pathloss=character(), max_snr_dn=character(),max_pathloss=character(),
+                             min_snr_dn=character(),min_pathloss=character(), snr_dn_snr_up=character(), pathloss_tx_up=character(),
+                             pathloss_rx_up=character(), pathloss_tdiff=character(), snr_dn_tdiff=character(), pathloss_delta=character(), 
+                             snr_dn_delta=character(),
+                             stringsAsFactors=FALSE)
 
-    if (nrow(dfx_snr_dn_delta) > 0) {
-      dfx_snr_dn_delta <-
-        aggregate(snr_dn_delta ~ src_node_id, data = dfx_snr_dn_delta, function(x) {
-          mean(x)
-        }, na.action = NULL)
-      hold_values[i] <- dfx_snr_dn_delta$snr_dn_delta
+j = 1
+counter = 1
+for (j in 1: length(nodes_names_list)){
+  z=1
+  for (z in 1: length(mylist[[j]])){ #z in number of mac address in node #8037N04
+    dfx <- mylist[[j]][[z]] #'' node of z mac add DF in list
+    hold_values <- list() #create an empty list to hold values
+    i=1
+    while (i < 20) {  #Loops through 20 times to create features by aggregating DF
+      #tx_pwr_up, rx_pwr_up , rx_pwr_dn, snr_dn, snr_up, pathloss, snr_up_median
+      #Creating extra features, 21 created..
+      hold_values[i] <- unique(dfx$src_node_id) #Mac add
+      i=i+1
+      hold_values[i] <- nrow(dfx)
+      i=i+1
+      hold_values[i] <- sum(is.na(dfx$snr_dn))/nrow(dfx)  #NA percentage
+      i=i+1
+      hold_values[i] <- sum(is.na(dfx$pathloss))/nrow(dfx)  #NA percentage
+      i=i+1
+      hold_values[i] <- sd(dfx$snr_dn, na.rm = TRUE)
+      i=i+1
+      hold_values[i] <- sd(dfx$pathloss, na.rm = TRUE)
+      i=i+1
+      hold_values[i] <- mean(dfx$snr_dn, na.rm = TRUE) #Mean of snr_dn
+      i=i+1
+      hold_values[i] <- mean(dfx$pathloss, na.rm = TRUE) #Mean of pathloss
+      i=i+1
+      hold_values[i] <- median(dfx$snr_dn, na.rm = TRUE) #Median of snr_dn
+      i=i+1
+      hold_values[i] <- median(dfx$pathloss, na.rm = TRUE) #Median of pathloss
+      i=i+1
+      hold_values[i] <- max(dfx$snr_dn, na.rm = TRUE) #Max of snr_dn
+      i=i+1
+      hold_values[i] <- max(dfx$pathloss, na.rm = TRUE) #Max of pathloss
+      i=i+1
+      hold_values[i] <- min(dfx$snr_dn, na.rm = TRUE) #Min of snr_dn
+      i=i+1
+      hold_values[i] <- min(dfx$pathloss, na.rm = TRUE) #Min of pathloss
+      i=i+1
+      hold_values[i] <- mean(dfx$snr_dn / dfx$snr_up, na.rm = TRUE)
+      i=i+1
+      hold_values[i] <- mean(dfx$pathloss / dfx$tx_pwr_up, na.rm = TRUE)
+      i=i+1
+      hold_values[i] <- mean(dfx$pathloss / dfx$rx_pwr_up, na.rm = TRUE)
+      i=i+1
       
-    } else { hold_values[i] <- NA}
+      dfx_pathloss_tdiff <-dfx[!is.na(dfx$pathloss), ]
+      dfx_pathloss_tdiff <-dfx_pathloss_tdiff[order(dfx_pathloss_tdiff$src_node_id,
+                                                    dfx_pathloss_tdiff$hour_stamp), ]
+      dfx_pathloss_tdiff$pathloss_tdiff <-
+        unlist( tapply(dfx_pathloss_tdiff$hour_stamp, INDEX = dfx_pathloss_tdiff$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
+      
+      if (nrow(dfx_pathloss_tdiff) > 0) {
+        dfx_pathloss_tdiff <-
+          aggregate(pathloss_tdiff ~ src_node_id, data = dfx_pathloss_tdiff, function(x) {
+            mean(x)
+          }, na.action = NULL)
+        hold_values[i] <- dfx_pathloss_tdiff$pathloss_tdiff
+        
+      } else { hold_values[i] <- NA}
+      i=i+1
+      
+      dfx_snr_dn_tdiff <-dfx[!is.na(dfx$snr_dn), ]
+      dfx_snr_dn_tdiff <-dfx_snr_dn_tdiff[order(dfx_snr_dn_tdiff$src_node_id, dfx_snr_dn_tdiff$hour_stamp), ]
+      dfx_snr_dn_tdiff$snr_dn_tdiff <-
+        unlist( tapply(dfx_snr_dn_tdiff$hour_stamp, INDEX = dfx_snr_dn_tdiff$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
+      if (nrow(dfx_snr_dn_tdiff) > 0) {
+        dfx_snr_dn_tdiff <-
+          aggregate(snr_dn_tdiff ~ src_node_id, data = dfx_snr_dn_tdiff, function(x) {
+            mean(x)
+          }, na.action = NULL)
+        hold_values[i] <- dfx_snr_dn_tdiff$snr_dn_tdiff
+        
+      } else { hold_values[i] <- NA}
+      i=i+1
+      ##
+      dfx_pathloss_delta <-dfx[!is.na(dfx$pathloss), ]
+      dfx_pathloss_delta <-dfx_pathloss_delta[order(dfx_pathloss_delta$src_node_id, dfx_pathloss_delta$hour_stamp), ]
+      dfx_pathloss_delta$pathloss_delta <-unlist( tapply(dfx_pathloss_delta$pathloss, INDEX = dfx_pathloss_delta$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
+      if (nrow(dfx_pathloss_delta) > 0) {
+        dfx_pathloss_delta <-
+          aggregate(pathloss_delta ~ src_node_id, data = dfx_pathloss_delta, function(x) {
+            mean(x)
+          }, na.action = NULL)
+        hold_values[i] <- dfx_pathloss_delta$pathloss_delta
+        
+      } else { hold_values[i] <- NA}
+      i=i+1
+      
+      dfx_snr_dn_delta <-dfx[!is.na(dfx$snr_dn), ]
+      dfx_snr_dn_delta <-dfx_snr_dn_delta[order(dfx_snr_dn_delta$src_node_id, dfx_snr_dn_delta$hour_stamp), ]
+      dfx_snr_dn_delta$snr_dn_delta <-unlist( tapply(dfx_snr_dn_delta$snr_dn, INDEX = dfx_snr_dn_delta$src_node_id, FUN = function(x) c(0, diff(as.numeric(x)))))
+      
+      if (nrow(dfx_snr_dn_delta) > 0) {
+        dfx_snr_dn_delta <-
+          aggregate(snr_dn_delta ~ src_node_id, data = dfx_snr_dn_delta, function(x) {
+            mean(x)
+          }, na.action = NULL)
+        hold_values[i] <- dfx_snr_dn_delta$snr_dn_delta
+        
+      } else { hold_values[i] <- NA}
+     
+    }
+    mac_add_DS[counter, ] <- hold_values #Add values as row
+    counter = counter + 1
   }
-  node_x_mac_add[z, ] <- hold_values #Add values as row
 }
-node_x_mac_add <- node_x_mac_add[node_x_mac_add$NA_Percentage_snr_dn < 1,]
-node_x_mac_add <- node_x_mac_add[node_x_mac_add$NA_Percentage_pathloss < 1,]
-#node_x_mac_add <- na.omit(node_x_mac_add) #Remove NA rows
-node_x_mac_add[, -1] <- sapply(node_x_mac_add[, -1], as.numeric) #Convert col types to num
-node_x_mac_add[sapply(node_x_mac_add, simplify = 'matrix', is.infinite)] <- NA #Replace inf with NA
-NA2mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
-node_x_mac_add <- replace(node_x_mac_add, TRUE, lapply(node_x_mac_add, NA2mean)) #Replace NA with col mean
 
-# B. Applying PCA
-node_x_mac_add <- node_x_mac_add[vapply(node_x_mac_add, function(x) length(unique(x)) > 1, logical(1L))] #Remove column with all same values
-prin_comp <- prcomp(node_x_mac_add[,-1], scale. = T, center = T )
+
+mac_add_DS <- mac_add_DS[mac_add_DS$NA_Percentage_snr_dn < 1,]
+mac_add_DS <- mac_add_DS[mac_add_DS$NA_Percentage_pathloss < 1,]
+mac_add_DS[, -1] <- sapply(mac_add_DS[, -1], as.numeric) #Convert col types to num
+mac_add_DS[sapply(mac_add_DS, simplify = 'matrix', is.infinite)] <- NA #Replace inf with NA
+NA2mean <- function(x) replace(x, is.na(x), mean(x, na.rm = TRUE))
+mac_add_DS <- replace(mac_add_DS, TRUE, lapply(mac_add_DS, NA2mean)) #Replace NA with col mean
+
+prin_comp <- prcomp(mac_add_DS[,-1], scale. = T, center = T )
 std_dev <- prin_comp$sdev
 pr_var <- std_dev^2
 prop_varex <- pr_var/sum(pr_var)
@@ -1060,13 +1063,13 @@ pca_rotation <- as.data.frame(prin_comp$rotation)
 library(cluster) # Needed for silhouette function
 
 # Setup for k-means loop 
-kmeansDat <- node_x_mac_add[,-1]
+kmeansDat <- mac_add_DS[,-1]
 km.out <- list()
 sil.out <- list()
 x <- vector()
 y <- vector()
 minClust <- 2      # Hypothesized minimum number of segments
-maxClust <- 6     # Hypothesized maximum number of segments
+maxClust <- 12     # Hypothesized maximum number of segments
 
 # Compute k-means clustering over various clusters, k, from minClust to maxClust
 for (centr in minClust:maxClust) {
@@ -1097,10 +1100,10 @@ k2 <- kmeans(pca_x, 2, nstart=25, iter.max=1000)
 
 library(RColorBrewer)
 palette(alpha(brewer.pal(9,'Set1'), 0.8))
-plot(pca_x[,1:3], col=k2$clust, pch=16)
+plot(pca_x[,1:5], col=k2$clust, pch=16)
 
 # Interactive 2D plot
-k2_pca_df <- cbind(pca_x, group=k2$clust, mac=node_x_mac_add$src_node_id) #mac=node_x_mac_add$src_node_id
+k2_pca_df <- cbind(pca_x, group=k2$clust, mac=mac_add_DS$src_node_id) 
 gg2 <- ggplot(k2_pca_df) +
   geom_point(aes(x=PC1, y=PC3, col=factor(group), text=mac), size=2) +
   labs(title = "Visualizing K-Means Clusters Against First Two Principal Components") +
@@ -1108,13 +1111,12 @@ gg2 <- ggplot(k2_pca_df) +
 # plotly for inteactivity
 plotly1 <- ggplotly(gg2, tooltip = c("text", "x", "y")) %>%
   layout(legend = list(x=.9, y=.99))
-plotly1
-                                        
+
 # Boxplot
-boxplot(node_x_mac_add$NA_Percentage_snr_dn ~ k2$cluster,
+boxplot(mac_add_DS$NA_Percentage_snr_dn ~ k2$cluster,
         xlab='Cluster', ylab='NA %',
         main='NA % by cluster')
 
-boxplot(node_x_mac_add$mean_pathloss ~ k2$cluster,
+boxplot(mac_add_DS$mean_pathloss ~ k2$cluster,
         xlab='Cluster', ylab='NA %',
         main='NA % by cluster')
