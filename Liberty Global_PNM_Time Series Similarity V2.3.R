@@ -160,7 +160,7 @@ for (i in 1:nrow(node_mac))
 }
 
 
-# Feaure-based distances - Cross-correlation based 
+# Feature-based distances - Cross-correlation based 
 
 for (i in 1:nrow(node_mac))
 {
