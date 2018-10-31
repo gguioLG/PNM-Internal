@@ -510,5 +510,88 @@ mac_feature_list_updated$mac_label[is.na(mac_feature_list_updated$mac_label)] <-
 
 
 
+######################################################################
+################### Classification algorithms #########################
+#######################################################################
+library(caret)
+library(randomForest)
+
+#Replace Inf with the median of the column
+med <- median(mac_feature_list_updated[mac_feature_list_updated$pathloss_rxpwrup_ratio!=Inf,"pathloss_rxpwrup_ratio"])
+mac_feature_list_updated[mac_feature_list_updated$pathloss_rxpwrup_ratio==Inf, "pathloss_rxpwrup_ratio"] <- med
+
+
+#Replace NA values of snrdn_ccor
+med <- median(mac_feature_list_updated[!is.na(mac_feature_list_updated$snrdn_ccor),"snrdn_ccor"])
+mac_feature_list_updated[is.na(mac_feature_list_updated$snrdn_ccor), "snrdn_ccor"] <- med
+
+
+#PCA
+
+prin_comp <- prcomp(mac_feature_list_updated[, !(colnames(mac_feature_list_updated) %in% c("src_node_id","mac_label"))], scale. = T, center = T )
+
+#summary(prin_comp)
+#corrplot(cor(mac_feature_list_updated[,-c(1,34)]))
+
+#We select the first 13 PCs and create a new dataframe
+df_pca <- as.data.frame(prin_comp$x[,c(1:13)])
+df_pca$mac_label <- as.factor(mac_feature_list_updated$mac_label)
+
+# Train - test partition
+train_rows <- createDataPartition(y=df_pca$mac_label, p=0.75, list = FALSE)
+train_data <- df_pca[train_rows,]
+
+test_data <- df_pca[-train_rows,]
+
+############## Cross Validation #############
+
+## Random Forest
+train_c <- trainControl(method="cv", number = 5)
+
+tunegrid <- expand.grid(.mtry= c(2:13))
+
+rf_model <- train(train_data[,-length(train_data)], train_data$mac_label, metric = "Kappa",
+                  method = "rf", tuneGrid = tunegrid, trControl = train_c, sampsize=c(40,40))
+
+y_pred <- predict(rf_model, test_data)
+
+confusionMatrix(y_pred, test_data$mac_label)
+
+## SVM RBF
+train_c <- trainControl(method="cv", number = 5)
+
+tunegrid <- expand.grid(.sigma=c(0.001, 0.01, 0.1, 0.0001, 0.00001), .C=c(1,10,100,1000))
+
+svm_Radial <- train(mac_label ~., data = train_data, method = "svmRadial",
+                    preProcess = c("center", "scale"), metric = "Kappa",
+                    tuneLength = 10, tuneGrid = tunegrid, trControl = train_c)
+y_pred <- predict(svm_Radial, test_data)
+confusionMatrix(y_pred, test_data$mac_label)
+
+### SVM POLY
+train_c <- trainControl(method="cv", number = 5)
+
+tunegrid <- expand.grid(.scale=c(FALSE,TRUE), .degree=c(3,4,5,6,7,8), .C=c(1,10,100,1000))
+
+svm_poly <- train(mac_label ~., data = train_data, method = "svmPoly",
+                    preProcess = c("center", "scale"), metric = "Kappa",
+                    tuneLength = 10, tuneGrid = tunegrid, trControl = train_c)
+y_pred <- predict(svm_poly, test_data)
+confusionMatrix(y_pred, test_data$mac_label)
+
+### GBM
+
+train_c <- trainControl(method="cv", number = 5)
+
+tunegrid <- expand.grid(.n.trees = c(50,100,150), .shrinkage = c(0.01, 0.001),
+                        .interaction.depth=c(3), .n.minobsinnode=c(1,3,5))
+
+gbm_model <- train(mac_label ~., data = train_data, method = "gbm",
+                  preProcess = c("center", "scale"), metric = "Kappa",
+                  tuneLength = 10, tuneGrid = tunegrid, trControl = train_c)
+y_pred <- predict(gbm_model, test_data)
+confusionMatrix(y_pred, test_data$mac_label)
+
+
 
 
