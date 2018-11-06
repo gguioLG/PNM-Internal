@@ -360,7 +360,6 @@ mac_feature_list <-
 consecutive_NA = function(x, val = 9999) {
   with(rle(x), max(lengths[values == val]))
 }
-consecutive_NA(dataset$counter)
 
 # Number of X consecutive NA in a mac series
 X_consecutive_NA = function(x, val = 9999) {
