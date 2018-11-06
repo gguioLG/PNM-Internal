@@ -355,6 +355,66 @@ mac_feature_list <-
         by = "src_node_id",
         all.x = TRUE)
 
+# Create NA functions
+# Most consecutive NA in a mac series
+consecutive_NA = function(x, val = 9999) {
+  with(rle(x), max(lengths[values == val]))
+}
+consecutive_NA(dataset$counter)
+
+# Number of X consecutive NA in a mac series
+X_consecutive_NA = function(x, val = 9999) {
+  with(rle(x), lengths[values == val])
+}
+
+#Create dummy list to hold aggregated mac addresses feature list
+mac_add_DS <- data.frame(src_node_id=character(), pathloss_max_consecutive_NA=character(),snrdn_max_consecutive_NA=character(), snrdn_3_consecutive_NA=character(),
+                         pathloss_3_consecutive_NA=character(), snrdn_5_consecutive_NA=character(), pathloss_5_consecutive_NA=character(),
+                         snrdn_10_consecutive_NA=character(),pathloss_10_consecutive_NA=character(),
+                         stringsAsFactors=FALSE)
+
+node_id_unique <- unique(CPEData_n$src_node_id) #list unique nodes
+mac_DF <- list() #Reference list that will hold node + list mac add DF
+for( i in node_id_unique){ #change to nodes_name_list
+  df_temp <- CPEData_n[CPEData_n$src_node_id == i,] #Subset based on node_name
+  mac_DF[[i]]  <- split(df_temp ,df_temp$src_node_id) #Split by mac add, create DF
+}
+
+z = 1
+counter = 1
+for (z in 1: length(mac_DF)){ 
+  dfx <- data.frame(mac_DF[[z]])
+  x <- c("vertex_topo_node_id","edge_id","building_id","pathorder","hour_stamp","topo_node_type","node_key","src_node_model","src_node_id","src_node_name","node_name","mac_address"        
+         ,"tx_pwr_up","rx_pwr_up","rx_pwr_dn","snr_dn","snr_up","pathloss","snr_up_median")
+  colnames(dfx) <- x
+  dfx[is.na(dfx)] = 9999
+  hold_values <- list() #create an empty list to hold values
+  i=1
+  while (i < 8) {  
+    hold_values[i] <- unique(dfx$src_node_id) #Mac add
+    i=i+1
+    hold_values[i] <- consecutive_NA(dfx$pathloss)
+    i=i+1
+    hold_values[i] <- consecutive_NA(dfx$snr_dn)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$snr_dn) == 3)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$pathloss) == 3)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$snr_dn) == 5)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$pathloss) == 5)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$snr_dn) == 10)
+    i=i+1
+    hold_values[i] <- sum(X_consecutive_NA(dfx$pathloss) == 10)
+  }
+  mac_add_DS[counter, ] <- hold_values #Add values as row
+  counter = counter + 1
+}
+
+library(plyr)
+mac_feature_list <- join(mac_feature_list, mac_add_DS, by="src_node_id")
 
 # #################################################
 # ## REMOVING MAC ADRESSES WHERE PERCENTAGE NA VALUES FOR SNR_DN OR PATHLOSS 
