@@ -488,6 +488,14 @@ for (z in 1: length(mac_DF)){
   counter = counter + 1
 }
 
+# Add to mac_feature_list the new columns
+
+mac_feature_list <-
+  merge(x = mac_feature_list,
+        y = mac_add_DS,
+        by = "src_node_id",
+        all.x = TRUE)
+
 rm(df_temp)
 rm(dfx)
 rm(counter)
@@ -500,175 +508,368 @@ rm(z)
 rm(consecutive_NA)
 rm(X_consecutive_NA)
 
-# #################################################
-# ## IMPUTATION
-# #################################################
-# 
-# Imputing the NA values in the node dataset with Simple moving averages(SMA). 
-# The SMA method was chosen since it was performing better than most of the 
-# other methods based on RMSE metric.
-# 
-  NodeData <- NodeData[order(NodeData$node_name, NodeData$hour_stamp), ]
- 
- NodeData <- NodeData %>%
-   group_by(node_name) %>%
-   mutate(snr_up_sma = na.ma(snr_up, k = 4, weighting = "simple"))
- 
-
-# Imputing the NA values in the Mac snrdn dataset with Simple moving averages
+# # #################################################
+# # ## IMPUTATION
+# # #################################################
+# # 
+# # Imputing the NA values in the node dataset with Simple moving averages(SMA). 
+# # The SMA method was chosen since it was performing better than most of the 
+# # other methods based on RMSE metric.
+# # 
+#   NodeData <- NodeData[order(NodeData$node_name, NodeData$hour_stamp), ]
 #  
-mac_snrdn <-  mac_snrdn[order(mac_snrdn$node_name,
-                   mac_snrdn$src_node_id,
-                   mac_snrdn$hour_stamp), ]
- 
- mac_snrdn <- mac_snrdn %>%
-   group_by(src_node_id) %>%
-   mutate(snr_dn_sma = na.ma(snr_dn, k = 4, weighting = "simple"))
- 
-# Imputing the NA values in the Mac pathloss dataset with Simple moving averages
+#  NodeData <- NodeData %>%
+#    group_by(node_name) %>%
+#    mutate(snr_up_sma = na.ma(snr_up, k = 4, weighting = "simple"))
+#  
+# 
+# # Imputing the NA values in the Mac snrdn dataset with Simple moving averages
+# #  
+# mac_snrdn <-  mac_snrdn[order(mac_snrdn$node_name,
+#                    mac_snrdn$src_node_id,
+#                    mac_snrdn$hour_stamp), ]
+#  
+#  mac_snrdn <- mac_snrdn %>%
+#    group_by(src_node_id) %>%
+#    mutate(snr_dn_sma = na.ma(snr_dn, k = 4, weighting = "simple"))
+#  
+# # Imputing the NA values in the Mac pathloss dataset with Simple moving averages
+# 
+#  mac_pathloss <-
+#    mac_pathloss[order(mac_pathloss$node_name,
+#                       mac_pathloss$src_node_id,
+#                       mac_pathloss$hour_stamp), ]
+#  
+#  mac_pathloss <- mac_pathloss %>%
+#    group_by(src_node_id) %>%
+#    mutate(pathloss_sma = na.ma(pathloss, k = 4, weighting = "simple"))
+# 
+# 
+# # #################################################
+# # ## CALCULATING TIME SERIES SIMILARITY DISTANCE MEASURES ON ALL MACs 
+# # ## PRESENT IN THE UPDATED FEATURE LIST
+# # #################################################
+# 
+# # Creating a unique list of nodes and mac addresses
+# 
+# node_mac <- unique(CPEData[, c("node_name", "src_node_id")])
+# node_mac <-  subset(node_mac, src_node_id %in% mac_feature_list$src_node_id)
+# 
+# # Shape-based distances - Dynamic Time Warping (DTW) Distance
+# 
+# for (i in 1:nrow(node_mac))
+# {
+# 
+#   node_series <- NA
+#   mac_snrdn_series  <- NA
+#   mac_pathloss_series  <- NA
+# 
+#   node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
+#   mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
+#   mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
+# 
+#   node_mac$snrdn_dtw[i] <- TSDistances(node_series, mac_snrdn_series , distance="dtw", sigma=10)
+#   node_mac$pathloss_dtw[i] <- TSDistances(node_series, mac_pathloss_series , distance="dtw",sigma=10)
+# }
+# 
+# 
+# # Edit based distances - Edit Distance for Real Sequences (EDR)
+# 
+# for (i in 1:nrow(node_mac))
+# {
+# 
+#   node_series <- NA
+#   mac_snrdn_series  <- NA
+#   mac_pathloss_series  <- NA
+# 
+#   node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
+#   mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
+#   mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
+# 
+#   node_mac$snrdn_edr[i] <- TSDistances(node_series, mac_snrdn_series , distance="edr", epsilon=0.1)
+#   node_mac$pathloss_edr[i] <- TSDistances(node_series, mac_pathloss_series , distance="edr", epsilon=0.1)
+# }
+# 
+# # Edit based distances - Longest Common Subsequence (LCSS)
+# 
+# for (i in 1:nrow(node_mac))
+# {
+# 
+#   node_series <- NA
+#   mac_snrdn_series  <- NA
+#   mac_pathloss_series  <- NA
+# 
+#   node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
+#   mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
+#   mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
+# 
+#   node_mac$snrdn_lcss[i] <- TSDistances(node_series, mac_snrdn_series , distance="lcss", epsilon=0.1)
+#   node_mac$pathloss_lcss[i] <- TSDistances(node_series, mac_pathloss_series , distance="lcss", epsilon=0.1)
+# }
+# 
+# # Edit based distances - Edit Distance with Real Penalty (ERP)
+# 
+# for (i in 1:nrow(node_mac))
+# {
+# 
+#   node_series <- NA
+#   mac_snrdn_series  <- NA
+#   mac_pathloss_series  <- NA
+# 
+#   node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
+#   mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
+#   mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
+# 
+#   node_mac$snrdn_erp[i] <- TSDistances(node_series, mac_snrdn_series , distance="erp", g=0)
+#   node_mac$pathloss_erp[i] <- TSDistances(node_series, mac_pathloss_series , distance="erp", g=0)
+# }
+# 
+# 
+# # Feaure-based distances - Cross-correlation based
+# 
+# for (i in 1:nrow(node_mac))
+# {
+# 
+#   node_series <- NA
+#   mac_snrdn_series  <- NA
+#   mac_pathloss_series  <- NA
+# 
+#   node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
+#   mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
+#   mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
+# 
+#   node_mac$snrdn_ccor[i] <- TSDistances(node_series, mac_snrdn_series , distance="ccor")
+#   node_mac$pathloss_ccor[i] <- TSDistances(node_series, mac_pathloss_series , distance="ccor")
+# }
+# 
+# rm(node_series)
+# rm(mac_snrdn_series)
+# rm(mac_pathloss_series)
+# 
+# ########################################################################
+# ## INCULDING THE TIME SERIES DISTANCE METRICS IN THE UPDATE FEATURE LIST
+# ########################################################################
+# 
+# # Adding TS similarity columns to feature list
+# 
+# mac_feature_list$snrdn_dtw <- node_mac$snrdn_dtw[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$pathloss_dtw <- node_mac$pathloss_dtw[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$snrdn_edr <- node_mac$snrdn_edr[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$pathloss_edr <- node_mac$pathloss_edr[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$snrdn_lcss <- node_mac$snrdn_lcss[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$pathloss_lcss <- node_mac$pathloss_lcss[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$snrdn_erp <- node_mac$snrdn_erp[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$pathloss_erp <- node_mac$pathloss_erp[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$snrdn_ccor <- node_mac$snrdn_ccor[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# mac_feature_list$pathloss_ccor <- node_mac$pathloss_ccor[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# 
+# # Adding mac label - 0/1 variable for CPD cases.
+# 
+# mac_feature_list$mac_label <- mac_positive$mac_label[match(mac_feature_list$src_node_id, mac_positive$src_node_id)]
+# 
+# mac_feature_list$mac_label[is.na(mac_feature_list$mac_label)] <- 0
 
- mac_pathloss <-
-   mac_pathloss[order(mac_pathloss$node_name,
-                      mac_pathloss$src_node_id,
-                      mac_pathloss$hour_stamp), ]
- 
- mac_pathloss <- mac_pathloss %>%
-   group_by(src_node_id) %>%
-   mutate(pathloss_sma = na.ma(pathloss, k = 4, weighting = "simple"))
 
+###################################################
+### AVERAGE TIME DIFFERENCE    
+##################################################
 
-# #################################################
-# ## CALCULATING TIME SERIES SIMILARITY DISTANCE MEASURES ON ALL MACs 
-# ## PRESENT IN THE UPDATED FEATURE LIST
-# #################################################
+# Function to calculate the average time difference between first NA value of one sequence
+# and first NA value of next sequence
+# @param mac_df mac dataframe with the time series
+# @param n number of consecutive NA
+# @param is_snr_dn boolean to select the snr dn or pathloss time series
 
-# Creating a unique list of nodes and mac addresses
-
-node_mac <- unique(CPEData[, c("node_name", "src_node_id")])
-node_mac <-  subset(node_mac, src_node_id %in% mac_feature_list$src_node_id)
-
-# Shape-based distances - Dynamic Time Warping (DTW) Distance
-
-for (i in 1:nrow(node_mac))
-{
-
-  node_series <- NA
-  mac_snrdn_series  <- NA
-  mac_pathloss_series  <- NA
-
-  node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
-  mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
-  mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
-
-  node_mac$snrdn_dtw[i] <- TSDistances(node_series, mac_snrdn_series , distance="dtw", sigma=10)
-  node_mac$pathloss_dtw[i] <- TSDistances(node_series, mac_pathloss_series , distance="dtw",sigma=10)
+avg_time_diff <- function(mac_df, n=3, is_snr_dn=TRUE){
+  if(is_snr_dn){
+    vector_tf <- is.na(mac_df$snr_dn)
+  }else{
+    vector_tf <- is.na(mac_df$pathloss)
+  }
+  
+  # RLE computes the lengths and values of runs of equal values in a vector
+  # in this case values are TRUE (NA) or FALSE (not NA)
+  rle_vector <- rle(vector_tf)
+  
+  # Select the indices of the array of lengths where the
+  # number of consecutive NA is equal to n
+  indices <- which(rle_vector$lengths == n & rle_vector$values==TRUE)
+  if(length(indices)== 1 | length(indices)== 0){
+    return(0)
+  }
+  hourstamps = c()
+  for(ind in indices){
+    # Save the hourstamp of the first NA of the sequence
+    hourstamps[length(hourstamps)+1] <- mac_df[sum(rle_vector$lengths[1:ind-1])+1,"hour_stamp"][[1]]
+    
+  }
+  
+  # Mean of the differences between hourstamps
+  return(mean(abs(diff(hourstamps))))
 }
 
+macs <- unique(mac_snrdn$src_node_id)
 
-# Edit based distances - Edit Distance for Real Sequences (EDR)
-
-for (i in 1:nrow(node_mac))
-{
-
-  node_series <- NA
-  mac_snrdn_series  <- NA
-  mac_pathloss_series  <- NA
-
-  node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
-  mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
-  mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
-
-  node_mac$snrdn_edr[i] <- TSDistances(node_series, mac_snrdn_series , distance="edr", epsilon=0.1)
-  node_mac$pathloss_edr[i] <- TSDistances(node_series, mac_pathloss_series , distance="edr", epsilon=0.1)
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (3 consecutive NAs) for each mac in mac_snrdn
+time_diff <- c()
+for(i in 1:length(macs)){
+  time_diff[i] <- avg_time_diff(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 3)
 }
 
-# Edit based distances - Longest Common Subsequence (LCSS)
-
-for (i in 1:nrow(node_mac))
-{
-
-  node_series <- NA
-  mac_snrdn_series  <- NA
-  mac_pathloss_series  <- NA
-
-  node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
-  mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
-  mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
-
-  node_mac$snrdn_lcss[i] <- TSDistances(node_series, mac_snrdn_series , distance="lcss", epsilon=0.1)
-  node_mac$pathloss_lcss[i] <- TSDistances(node_series, mac_pathloss_series , distance="lcss", epsilon=0.1)
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (5 consecutive NAs) for each mac in mac_snrdn
+time_diff5 <- c()
+for(i in 1:length(macs)){
+  time_diff5[i] <- avg_time_diff(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 5)
 }
 
-# Edit based distances - Edit Distance with Real Penalty (ERP)
-
-for (i in 1:nrow(node_mac))
-{
-
-  node_series <- NA
-  mac_snrdn_series  <- NA
-  mac_pathloss_series  <- NA
-
-  node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
-  mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
-  mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
-
-  node_mac$snrdn_erp[i] <- TSDistances(node_series, mac_snrdn_series , distance="erp", g=0)
-  node_mac$pathloss_erp[i] <- TSDistances(node_series, mac_pathloss_series , distance="erp", g=0)
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (10 consecutive NAs) for each mac in mac_snrdn
+time_diff10 <- c()
+for(i in 1:length(macs)){
+  time_diff10[i] <- avg_time_diff(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 10)
 }
 
-
-# Feaure-based distances - Cross-correlation based
-
-for (i in 1:nrow(node_mac))
-{
-
-  node_series <- NA
-  mac_snrdn_series  <- NA
-  mac_pathloss_series  <- NA
-
-  node_series <- NodeData$snr_up_sma[NodeData$node_name == node_mac$node_name[i]]
-  mac_snrdn_series <- mac_snrdn$snr_dn_sma[mac_snrdn$src_node_id == node_mac$src_node_id[i]]
-  mac_pathloss_series <- mac_pathloss$pathloss_sma[mac_pathloss$src_node_id == node_mac$src_node_id[i]]
-
-  node_mac$snrdn_ccor[i] <- TSDistances(node_series, mac_snrdn_series , distance="ccor")
-  node_mac$pathloss_ccor[i] <- TSDistances(node_series, mac_pathloss_series , distance="ccor")
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (3 consecutive NAs) for each mac in mac_pathloss
+time_diff_p <- c()
+for(i in 1:length(macs)){
+  time_diff_p[i] <- avg_time_diff(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 3, is_snr_dn = FALSE)
 }
 
-rm(node_series)
-rm(mac_snrdn_series)
-rm(mac_pathloss_series)
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (5 consecutive NAs) for each mac in mac_pathloss
+time_diff5_p <- c()
+for(i in 1:length(macs)){
+  time_diff5_p[i] <- avg_time_diff(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 5, is_snr_dn = FALSE)
+}
 
-########################################################################
-## INCULDING THE TIME SERIES DISTANCE METRICS IN THE UPDATE FEATURE LIST
-########################################################################
+# Add a column in the data frame mac_feature_list to find out the average time difference between 
+# successive (10 consecutive NAs) for each mac in mac_pathloss
+time_diff10_p <- c()
+for(i in 1:length(macs)){
+  time_diff10_p[i] <- avg_time_diff(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 10, is_snr_dn = FALSE)
+}
 
-# Adding TS similarity columns to feature list
+# Create dataframe with new columns
+df_time_diff <- data.frame(src_node_id=macs,avg_time_3NA_snr = time_diff,avg_time_5NA_snr = time_diff5,
+                           avg_time_10NA_snr = time_diff10, avg_time_3NA_pathloss=time_diff_p, avg_time_5NA_pathloss=time_diff5_p,
+                           avg_time_10NA_pathloss=time_diff10_p)
 
-mac_feature_list$snrdn_dtw <- node_mac$snrdn_dtw[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add to mac_feature_list the new columns
 
-mac_feature_list$pathloss_dtw <- node_mac$pathloss_dtw[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+mac_feature_list <-
+  merge(x = mac_feature_list,
+        y = df_time_diff,
+        by = "src_node_id",
+        all.x = TRUE)
 
-mac_feature_list$snrdn_edr <- node_mac$snrdn_edr[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Function to calculate the average time difference between last NA value of one sequence
+# and first NA value of next sequence
+# @param mac_df mac dataframe with the time series
+# @param n number of consecutive NA
+# @param is_snr_dn boolean to select the snr dn or pathloss time series
 
-mac_feature_list$pathloss_edr <- node_mac$pathloss_edr[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+avg_time_diff_between_na <- function(mac_df, n=3, is_snr_dn=TRUE){
+  if(is_snr_dn){
+    vector_tf <- is.na(mac_df$snr_dn)
+  }else{
+    vector_tf <- is.na(mac_df$pathloss)
+  }
+  
+  # RLE computes the lengths and values of runs of equal values in a vector
+  # in this case values are TRUE (NA) or FALSE (not NA)
+  rle_vector <- rle(vector_tf)
+  
+  # Select the indices of the array of lengths where the
+  # number of consecutive NA is equal to n
+  indices <- which(rle_vector$lengths == n & rle_vector$values==TRUE)
+  if(length(indices)== 1 | length(indices)== 0){
+    return(0)
+  }
+  hourstamps = c()
+  for(i in 1:length(indices)){
+    if(i+1 <= length(indices) ){
+      # Save the hourstamp of the last NA of the sequence
+      hourstamps[length(hourstamps)+1] <- mac_df[sum(rle_vector$lengths[1:indices[i]-1])+n,"hour_stamp"][[1]]
+      # Save the hourstamp of the first NA of the next sequence
+      hourstamps[length(hourstamps)+1] <- mac_df[sum(rle_vector$lengths[1:indices[i+1]-1])+1,"hour_stamp"][[1]]
+    }
+  }
+  
+  # Mean of the differences between hourstamps  
+  return(mean(abs(diff(hourstamps))))
+}
 
-mac_feature_list$snrdn_lcss <- node_mac$snrdn_lcss[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (3 consecutive NAs) for each mac in mac_snrdn
+time_diff <- c()
+for(i in 1:length(macs)){
+  time_diff[i] <- avg_time_diff_between_na(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 3)
+}
 
-mac_feature_list$pathloss_lcss <- node_mac$pathloss_lcss[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (5 consecutive NAs) for each mac in mac_snrdn
+time_diff5 <- c()
+for(i in 1:length(macs)){
+  time_diff5[i] <- avg_time_diff_between_na(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 5)
+}
 
-mac_feature_list$snrdn_erp <- node_mac$snrdn_erp[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (10 consecutive NAs) for each mac in mac_snrdn
+time_diff10 <- c()
+for(i in 1:length(macs)){
+  time_diff10[i] <- avg_time_diff_between_na(mac_snrdn[mac_snrdn$src_node_id == macs[i],c("hour_stamp", "snr_dn")], 10)
+}
 
-mac_feature_list$pathloss_erp <- node_mac$pathloss_erp[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (3 consecutive NAs) for each mac in mac_pathloss
+time_diff_p <- c()
+for(i in 1:length(macs)){
+  time_diff_p[i] <- avg_time_diff_between_na(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 3, is_snr_dn = FALSE)
+}
 
-mac_feature_list$snrdn_ccor <- node_mac$snrdn_ccor[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (5 consecutive NAs) for each mac in mac_pathloss
 
-mac_feature_list$pathloss_ccor <- node_mac$pathloss_ccor[match(mac_feature_list$src_node_id, node_mac$src_node_id)]
+time_diff5_p <- c()
+for(i in 1:length(macs)){
+  time_diff5_p[i] <- avg_time_diff_between_na(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 5, is_snr_dn = FALSE)
+}
 
-# Adding mac label - 0/1 variable for CPD cases.
+# Add a column in the data frame mac_feature_list to find out the average operative time difference between 
+# successive (10 consecutive NAs) for each mac in mac_pathloss
 
-mac_feature_list$mac_label <- mac_positive$mac_label[match(mac_feature_list$src_node_id, mac_positive$src_node_id)]
+time_diff10_p <- c()
+for(i in 1:length(macs)){
+  time_diff10_p[i] <- avg_time_diff_between_na(mac_pathloss[mac_pathloss$src_node_id == macs[i],c("hour_stamp", "pathloss")], 10, is_snr_dn = FALSE)
+}
 
-mac_feature_list$mac_label[is.na(mac_feature_list$mac_label)] <- 0
+# Create dataframe with new columns
+
+df_oper_time_diff <- data.frame(src_node_id=macs,avg_oper_time_3NA_snr = time_diff,avg_oper_time_5NA_snr = time_diff5,
+                                avg_oper_time_10NA_snr = time_diff10, avg_oper_time_3NA_pathloss=time_diff_p, avg_oper_time_5NA_pathloss=time_diff5_p,
+                                avg_oper_time_10NA_pathloss=time_diff10_p)
+
+# Add to mac_feature_list the new columns
+
+mac_feature_list <-
+  merge(x = mac_feature_list,
+        y = df_oper_time_diff,
+        by = "src_node_id",
+        all.x = TRUE)
+
+
 
 # #################################################
 # ## FEATURE IMPORTANCE
