@@ -75,6 +75,7 @@ print(importance_rf)
 
 plot(importance_rf)
 
+
 # ###########################################################
 # ## BAGGED CART for feature selection
 # ###########################################################
@@ -146,16 +147,32 @@ colnames(correlationMatrix[,c(hc)])
 # ## Common Features between 4 methods ()
 # ###########################################################
 
-rf_cols <- rownames(data.frame(importance_rf[1]))
-tb_cols <- rownames(data.frame(importance_tb[1]))
+# Getting features above threshold for RF
+
+df <- data.frame(importance_rf[1])
+setDT(df, keep.rownames = TRUE)[]
+rf_cols <- df$rn[df$Overall > 20]
+
+# Getting features above threshold for TB
+
+df <- data.frame(importance_tb[1])
+setDT(df, keep.rownames = TRUE)[]
+tb_cols <- df$rn[df$Overall > 20]
+
 rfe_cols <- predictors(model_rfe)
+
 uncor_cols <- colnames(correlationMatrix[,-c(hc)])
 
 Reduce(intersect, list(rf_cols,tb_cols,rfe_cols,uncor_cols))
 
-# [1] "snrdn_sd"       "pathloss_min"   "pathloss_sd"    "snrdn_delta"   
-# [5] "pathloss_delta" "snr_ratio"      "snrdn_dtw"      "pathloss_edr"  
-# [9] "snrdn_lcss"     "snrdn_ccor"     "pathloss_ccor" 
+# [1] "snrdn_ccor"    "pathloss_ccor"
+
+Reduce(intersect, list(tb_cols,rfe_cols,uncor_cols))
+
+# [1] "pathloss_ccor"  "pathloss_delta" "pathloss_edr"   "pathloss_min"  
+# [5] "pathloss_sd"    "snrdn_ccor"     "snrdn_delta"    "snrdn_dtw"     
+# [9] "snrdn_lcss"     "snrdn_sd"
+
 
 # #################################################
 # ## SAVE R SESSION
